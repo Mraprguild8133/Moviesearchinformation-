@@ -22,7 +22,7 @@ app = Flask(__name__)
 bot = MovieTVBot()
 
 # Determine if we should use polling or webhook based on environment
-USE_POLLING = os.environ.get('USE_POLLING', 'False').lower() == 'true'
+MODE = os.environ.get('MODE', 'webhook')  # Default to webhook for production
 
 @app.route('/', methods=['GET'])
 def index():
@@ -31,12 +31,16 @@ def index():
         'status': 'active',
         'message': 'Movie & TV Telegram Bot is running',
         'bot_username': bot.bot_username if hasattr(bot, 'bot_username') else 'N/A',
-        'mode': 'polling' if USE_POLLING else 'webhook'
+        'mode': MODE
     })
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Handle incoming Telegram webhook updates"""
+    # Only process webhook requests if in webhook mode
+    if MODE != 'webhook':
+        return jsonify({'error': 'Webhook mode not active'}), 400
+        
     try:
         update_data = request.get_json()
         if update_data:
@@ -91,8 +95,8 @@ def stats():
         return jsonify({'error': 'Failed to get stats'}), 500
 
 def setup_webhook():
-    """Setup webhook URL automatically if in production"""
-    if not USE_POLLING:
+    """Setup webhook URL automatically if in webhook mode"""
+    if MODE == 'webhook':
         webhook_url = os.environ.get('WEBHOOK_URL')
         if webhook_url:
             logger.info(f"Setting up webhook: {webhook_url}")
@@ -104,23 +108,27 @@ def setup_webhook():
         else:
             logger.warning("WEBHOOK_URL environment variable not set")
 
+def start_polling():
+    """Start polling if in polling mode"""
+    if MODE == 'polling':
+        logger.info("Starting in polling mode")
+        bot.start_polling()
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
-    # Setup webhook if not using polling
-    if not USE_POLLING:
-        setup_webhook()
-    else:
-        logger.info("Starting in polling mode")
-        bot.start_polling()
+    # Setup based on mode
+    setup_webhook()
+    start_polling()
     
     logger.info(f"Starting Flask app on port {port}")
     logger.info(f"Bot @{bot.bot_username} is ready to receive messages")
+    logger.info(f"Running in {MODE} mode")
     
     try:
         app.run(host='0.0.0.0', port=port, debug=debug)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
-        if USE_POLLING:
+        if MODE == 'polling':
             bot.stop_polling()
