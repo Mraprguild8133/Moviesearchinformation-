@@ -5,7 +5,9 @@ Handles webhook setup and routing for Render.com deployment
 
 import os
 import logging
-from flask import Flask, request, jsonify
+import time
+from datetime import datetime
+from flask import Flask, request, jsonify, render_template
 from bot import MovieTVBot
 from config import Config
 
@@ -18,20 +20,46 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Initialize bot
+# Initialize bot and track start time
 bot = MovieTVBot()
-
-# Start polling for development/testing
-bot.start_polling()
+start_time = datetime.now()
 
 @app.route('/', methods=['GET'])
 def index():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'active',
-        'message': 'Movie & TV Telegram Bot is running',
-        'bot_username': bot.bot_username if hasattr(bot, 'bot_username') else 'N/A'
-    })
+    """Serve dashboard page"""
+    bot_username = getattr(bot, 'bot_username', 'movie_tv_bot')
+    return render_template('index.html', bot_username=bot_username)
+
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    """API endpoint for bot statistics"""
+    try:
+        # Get basic bot stats
+        basic_stats = bot.get_stats() if hasattr(bot, 'get_stats') else {}
+        
+        # Enhanced stats with runtime information
+        stats = {
+            'status': 'online',
+            'bot_name': getattr(bot, 'bot_name', 'Movie & TV Bot'),
+            'bot_username': getattr(bot, 'bot_username', 'N/A'),
+            'api_connected': True,  # You can implement actual API health check
+            'api_key_status': 'Connected',  # Implement TMDB API health check
+            'start_time': start_time.isoformat(),
+            'operating_mode': 'webhook',
+            'total_users': basic_stats.get('total_users', 0),
+            'active_today': basic_stats.get('active_today', 0),
+            'movies_searched': basic_stats.get('movies_searched', 0),
+            'tv_shows_searched': basic_stats.get('tv_shows_searched', 0),
+            'environment': 'Production' if not app.debug else 'Development',
+            'webhook_active': True,
+            'last_update': datetime.now().isoformat(),
+            'server_time': datetime.now().isoformat()
+        }
+        
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Stats error: {str(e)}")
+        return jsonify({'error': 'Failed to get stats'}), 500
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -66,25 +94,26 @@ def set_webhook():
         logger.error(f"Set webhook error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/stats', methods=['GET'])
-def stats():
-    """Get bot statistics"""
-    try:
-        stats = bot.get_stats()
-        return jsonify(stats)
-    except Exception as e:
-        logger.error(f"Stats error: {str(e)}")
-        return jsonify({'error': 'Failed to get stats'}), 500
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint for monitoring"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'uptime': str(datetime.now() - start_time),
+        'version': '1.0.0'
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
     logger.info(f"Starting Flask app on port {port}")
-    logger.info(f"Bot @{bot.bot_username} is ready to receive messages")
+    logger.info(f"Bot @{getattr(bot, 'bot_username', 'N/A')} is ready to receive messages")
     
     try:
         app.run(host='0.0.0.0', port=port, debug=debug)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
-        bot.stop_polling()
+        if hasattr(bot, 'stop_polling'):
+            bot.stop_polling()
