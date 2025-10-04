@@ -21,8 +21,20 @@ app = Flask(__name__)
 # Initialize bot
 bot = MovieTVBot()
 
-# Start polling for development/testing
-bot.start_polling()
+# Determine operation mode
+IS_PRODUCTION = os.environ.get('RENDER', False) or os.environ.get('WEBHOOK_MODE', False)
+POLLING_MODE = os.environ.get('POLLING_MODE', 'False').lower() == 'true'
+
+# Choose one mode only
+if POLLING_MODE and not IS_PRODUCTION:
+    logger.info("Starting in POLLING mode (development)")
+    # Delete any existing webhook first
+    bot.delete_webhook()
+    bot.start_polling()
+    operation_mode = "polling"
+else:
+    logger.info("Starting in WEBHOOK mode (production)")
+    operation_mode = "webhook"
 
 @app.route('/', methods=['GET'])
 def index():
@@ -30,12 +42,17 @@ def index():
     return jsonify({
         'status': 'active',
         'message': 'Movie & TV Telegram Bot is running',
+        'mode': operation_mode,
         'bot_username': bot.bot_username if hasattr(bot, 'bot_username') else 'N/A'
     })
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Handle incoming Telegram webhook updates"""
+    # Only process webhooks if in webhook mode
+    if operation_mode == "polling":
+        return jsonify({'status': 'ignored', 'message': 'Polling mode active'}), 200
+    
     try:
         update_data = request.get_json()
         if update_data:
@@ -57,8 +74,14 @@ def set_webhook():
         if not webhook_url:
             return jsonify({'error': 'URL is required'}), 400
         
+        # Stop polling if active
+        global operation_mode
+        if operation_mode == "polling":
+            bot.stop_polling()
+        
         success = bot.set_webhook(webhook_url)
         if success:
+            operation_mode = "webhook"
             return jsonify({'status': 'Webhook set successfully'})
         else:
             return jsonify({'error': 'Failed to set webhook'}), 500
@@ -66,11 +89,28 @@ def set_webhook():
         logger.error(f"Set webhook error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/delete_webhook', methods=['POST'])
+def delete_webhook():
+    """Delete webhook and switch to polling"""
+    try:
+        success = bot.delete_webhook()
+        if success:
+            global operation_mode
+            operation_mode = "polling"
+            bot.start_polling()
+            return jsonify({'status': 'Webhook deleted, polling started'})
+        else:
+            return jsonify({'error': 'Failed to delete webhook'}), 500
+    except Exception as e:
+        logger.error(f"Delete webhook error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/stats', methods=['GET'])
 def stats():
     """Get bot statistics"""
     try:
         stats = bot.get_stats()
+        stats['mode'] = operation_mode
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Stats error: {str(e)}")
@@ -81,10 +121,12 @@ if __name__ == '__main__':
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
     logger.info(f"Starting Flask app on port {port}")
+    logger.info(f"Bot running in {operation_mode} mode")
     logger.info(f"Bot @{bot.bot_username} is ready to receive messages")
     
     try:
         app.run(host='0.0.0.0', port=port, debug=debug)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
-        bot.stop_polling()
+        if operation_mode == "polling":
+            bot.stop_polling()
