@@ -21,8 +21,8 @@ app = Flask(__name__)
 # Initialize bot
 bot = MovieTVBot()
 
-# Start polling for development/testing
-bot.start_polling()
+# Determine if we should use polling or webhook based on environment
+USE_POLLING = os.environ.get('USE_POLLING', 'False').lower() == 'true'
 
 @app.route('/', methods=['GET'])
 def index():
@@ -30,7 +30,8 @@ def index():
     return jsonify({
         'status': 'active',
         'message': 'Movie & TV Telegram Bot is running',
-        'bot_username': bot.bot_username if hasattr(bot, 'bot_username') else 'N/A'
+        'bot_username': bot.bot_username if hasattr(bot, 'bot_username') else 'N/A',
+        'mode': 'polling' if USE_POLLING else 'webhook'
     })
 
 @app.route('/webhook', methods=['POST'])
@@ -66,6 +67,19 @@ def set_webhook():
         logger.error(f"Set webhook error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/remove_webhook', methods=['POST'])
+def remove_webhook():
+    """Remove webhook and switch to polling"""
+    try:
+        success = bot.remove_webhook()
+        if success:
+            return jsonify({'status': 'Webhook removed successfully'})
+        else:
+            return jsonify({'error': 'Failed to remove webhook'}), 500
+    except Exception as e:
+        logger.error(f"Remove webhook error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/stats', methods=['GET'])
 def stats():
     """Get bot statistics"""
@@ -76,9 +90,30 @@ def stats():
         logger.error(f"Stats error: {str(e)}")
         return jsonify({'error': 'Failed to get stats'}), 500
 
+def setup_webhook():
+    """Setup webhook URL automatically if in production"""
+    if not USE_POLLING:
+        webhook_url = os.environ.get('WEBHOOK_URL')
+        if webhook_url:
+            logger.info(f"Setting up webhook: {webhook_url}")
+            success = bot.set_webhook(webhook_url)
+            if success:
+                logger.info("Webhook set successfully")
+            else:
+                logger.error("Failed to set webhook")
+        else:
+            logger.warning("WEBHOOK_URL environment variable not set")
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
+    
+    # Setup webhook if not using polling
+    if not USE_POLLING:
+        setup_webhook()
+    else:
+        logger.info("Starting in polling mode")
+        bot.start_polling()
     
     logger.info(f"Starting Flask app on port {port}")
     logger.info(f"Bot @{bot.bot_username} is ready to receive messages")
@@ -87,4 +122,5 @@ if __name__ == '__main__':
         app.run(host='0.0.0.0', port=port, debug=debug)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
-        bot.stop_polling()
+        if USE_POLLING:
+            bot.stop_polling()
