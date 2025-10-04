@@ -100,14 +100,6 @@
             font-weight: bold;
         }
 
-        .status-error {
-            color: #DC2626;
-            font-weight: bold;
-            background: #FEE2E2;
-            padding: 2px 8px;
-            border-radius: 4px;
-        }
-
         .status-connected {
             color: #10B981;
             font-weight: bold;
@@ -136,6 +128,7 @@
             gap: 15px;
             flex-wrap: wrap;
             justify-content: center;
+            margin-bottom: 20px;
         }
 
         .btn {
@@ -181,16 +174,6 @@
             transform: translateY(-2px);
         }
 
-        .btn-danger {
-            background: #EF4444;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #DC2626;
-            transform: translateY(-2px);
-        }
-
         .refresh-info {
             text-align: center;
             color: white;
@@ -207,68 +190,15 @@
             opacity: 0.7;
         }
 
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 1000;
-            border-left: 4px solid #667eea;
-            max-width: 400px;
-            display: none;
-        }
-
-        .notification.error {
-            border-left-color: #EF4444;
+        .error-message {
             background: #FEF2F2;
-        }
-
-        .notification.success {
-            border-left-color: #10B981;
-            background: #F0FDF4;
-        }
-
-        .notification.show {
-            display: block;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        .debug-panel {
-            background: rgba(0,0,0,0.8);
-            color: white;
+            border: 1px solid #FECACA;
+            color: #DC2626;
             padding: 15px;
             border-radius: 8px;
-            margin-top: 20px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.8rem;
-            max-height: 200px;
-            overflow-y: auto;
+            margin-bottom: 20px;
+            text-align: center;
             display: none;
-        }
-
-        .debug-toggle {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-size: 0.8rem;
         }
 
         @media (max-width: 768px) {
@@ -283,12 +213,6 @@
             .controls {
                 flex-direction: column;
             }
-            
-            .notification {
-                left: 20px;
-                right: 20px;
-                max-width: none;
-            }
         }
     </style>
 </head>
@@ -299,10 +223,9 @@
             <p>Real-time Dashboard & Statistics</p>
         </div>
 
-        <!-- Notification System -->
-        <div id="notification" class="notification">
-            <span id="notificationMessage"></span>
-            <button onclick="hideNotification()" style="margin-left: 15px; background: none; border: none; cursor: pointer; font-size: 16px;">×</button>
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message">
+            <strong>Connection Error:</strong> <span id="errorText">Unable to connect to the server</span>
         </div>
 
         <div class="dashboard">
@@ -394,20 +317,13 @@
         <!-- Control Buttons -->
         <div class="controls">
             <button class="btn btn-primary" onclick="refreshStats()">🔄 Refresh Stats</button>
-            <a href="/stats" class="btn btn-secondary" target="_blank">📈 JSON Stats</a>
-            <button class="btn btn-success" onclick="testBotConnection()">🧪 Test Bot Connection</button>
-            <button class="btn btn-danger" onclick="clearCache()">🗑️ Clear Cache</button>
-            <a href="https://t.me/your_bot_username" class="btn btn-primary" target="_blank" id="telegramLink">💬 Open Telegram</a>
-        </div>
-
-        <!-- Debug Panel -->
-        <button class="debug-toggle" onclick="toggleDebug()">🐛 Toggle Debug Panel</button>
-        <div class="debug-panel" id="debugPanel">
-            <div id="debugLog"></div>
+            <button class="btn btn-success" onclick="testBotConnection()">🧪 Test Connection</button>
+            <a href="/api/stats" class="btn btn-secondary" target="_blank">📈 View Raw Data</a>
+            <a href="/health" class="btn btn-secondary" target="_blank">❤️ Health Check</a>
         </div>
 
         <div class="refresh-info">
-            Stats auto-refresh every 30 seconds | Page will update automatically
+            Stats auto-refresh every 30 seconds
         </div>
 
         <div class="last-updated">
@@ -417,75 +333,35 @@
 
     <script>
         let startTime = null;
-        let debugMode = false;
+        let refreshInterval;
 
-        // Debug logging
-        function debugLog(message, type = 'info') {
-            const debugPanel = document.getElementById('debugLog');
-            const timestamp = new Date().toLocaleTimeString();
-            const color = type === 'error' ? '#EF4444' : type === 'success' ? '#10B981' : '#6B7280';
-            const logEntry = `<div style="color: ${color}; margin-bottom: 5px;">[${timestamp}] ${message}</div>`;
-            
-            debugPanel.innerHTML += logEntry;
-            debugPanel.scrollTop = debugPanel.scrollHeight;
-            
-            if (debugMode) {
-                console.log(`[${type.toUpperCase()}] ${message}`);
-            }
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            errorText.textContent = message;
+            errorDiv.style.display = 'block';
         }
 
-        // Toggle debug panel
-        function toggleDebug() {
-            debugMode = !debugMode;
-            const debugPanel = document.getElementById('debugPanel');
-            debugPanel.style.display = debugMode ? 'block' : 'none';
-            debugLog(`Debug mode ${debugMode ? 'enabled' : 'disabled'}`, 'info');
-        }
-
-        // Notification system
-        function showNotification(message, type = 'info') {
-            const notification = document.getElementById('notification');
-            const messageElement = document.getElementById('notificationMessage');
-            
-            messageElement.textContent = message;
-            notification.className = `notification ${type} show`;
-            
-            // Auto-hide after 5 seconds for non-error messages
-            if (type !== 'error') {
-                setTimeout(hideNotification, 5000);
-            }
-        }
-
-        function hideNotification() {
-            const notification = document.getElementById('notification');
-            notification.classList.remove('show');
+        // Hide error message
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
         }
 
         // Format time duration
         function formatUptime(seconds) {
-            const days = Math.floor(seconds / (24 * 60 * 60));
-            const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
-            const minutes = Math.floor((seconds % (60 * 60)) / 60);
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
             const secs = Math.floor(seconds % 60);
-            
-            if (days > 0) {
-                return `${days}d ${hours}h ${minutes}m ${secs}s`;
-            } else if (hours > 0) {
-                return `${hours}h ${minutes}m ${secs}s`;
-            } else if (minutes > 0) {
-                return `${minutes}m ${secs}s`;
-            } else {
-                return `${secs}s`;
-            }
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
         // Format date
         function formatDate(dateString) {
-            if (!dateString) return 'Unknown';
             try {
                 return new Date(dateString).toLocaleString();
             } catch (e) {
-                return 'Invalid Date';
+                return 'Unknown';
             }
         }
 
@@ -504,164 +380,135 @@
             document.getElementById('serverTime').textContent = now.toLocaleString();
         }
 
-        // Set loading state
-        function setLoadingState(loading) {
+        // Set all fields to error state
+        function setErrorState() {
             const elements = document.querySelectorAll('.stat-value');
             elements.forEach(el => {
-                if (loading && !el.classList.contains('uptime')) {
+                if (!el.classList.contains('uptime')) {
+                    el.textContent = 'Error';
+                    el.className = 'stat-value status-offline';
+                }
+            });
+        }
+
+        // Set all fields to loading state
+        function setLoadingState() {
+            const elements = document.querySelectorAll('.stat-value');
+            elements.forEach(el => {
+                if (!el.classList.contains('uptime')) {
                     el.textContent = 'Loading...';
                     el.className = 'stat-value status-loading';
                 }
             });
         }
 
-        // Set error state
-        function setErrorState() {
-            document.getElementById('botStatus').textContent = 'Error';
-            document.getElementById('botStatus').className = 'stat-value status-error';
-            document.getElementById('apiStatus').textContent = 'Disconnected';
-            document.getElementById('apiStatus').className = 'stat-value status-disconnected';
-        }
-
         // Update dashboard with data
         function updateDashboard(data) {
-            debugLog('Updating dashboard with data:', 'success');
-            console.log('Dashboard data:', data);
-            
-            // Update bot information
+            console.log('Updating dashboard with:', data);
+            hideError();
+
+            // Bot Information
             document.getElementById('botName').textContent = data.bot_name || 'Movie & TV Bot';
-            document.getElementById('botUsername').textContent = data.bot_username ? `@${data.bot_username}` : '@unknown_bot';
+            document.getElementById('botUsername').textContent = data.bot_username ? `@${data.bot_username}` : '@unknown';
             document.getElementById('botStatus').textContent = data.status || 'Online';
-            document.getElementById('botStatus').className = data.status === 'error' ? 'stat-value status-error' : 'stat-value status-online';
+            document.getElementById('botStatus').className = 'stat-value status-online';
             document.getElementById('apiStatus').textContent = data.api_connected ? 'Connected' : 'Disconnected';
             document.getElementById('apiStatus').className = data.api_connected ? 'stat-value status-connected' : 'stat-value status-disconnected';
-            
-            // Update runtime information
+
+            // Runtime Information
             if (data.start_time) {
                 startTime = new Date(data.start_time);
                 document.getElementById('startTime').textContent = formatDate(data.start_time);
             }
-            document.getElementById('operatingMode').textContent = data.operating_mode || 'Unknown';
-            document.getElementById('lastUpdate').textContent = formatDate(data.last_update || new Date().toISOString());
-            
-            // Update usage statistics
-            document.getElementById('totalUsers').textContent = data.total_users ?? 0;
-            document.getElementById('activeToday').textContent = data.active_today ?? 0;
-            document.getElementById('moviesSearched').textContent = data.movies_searched ?? 0;
-            document.getElementById('tvShowsSearched').textContent = data.tv_shows_searched ?? 0;
-            
-            // Update system information
-            document.getElementById('environment').textContent = data.environment || 'Unknown';
-            document.getElementById('apiKeyStatus').textContent = data.api_key_status || 'Unknown';
-            document.getElementById('apiKeyStatus').className = data.api_key_status === 'Connected' ? 'stat-value status-connected' : 'stat-value status-disconnected';
+            document.getElementById('operatingMode').textContent = data.operating_mode || 'Webhook';
+            document.getElementById('lastUpdate').textContent = formatDate(data.last_update || new Date());
+
+            // Usage Statistics
+            document.getElementById('totalUsers').textContent = data.total_users || 0;
+            document.getElementById('activeToday').textContent = data.active_today || 0;
+            document.getElementById('moviesSearched').textContent = data.movies_searched || 0;
+            document.getElementById('tvShowsSearched').textContent = data.tv_shows_searched || 0;
+
+            // System Information
+            document.getElementById('environment').textContent = data.environment || 'Production';
+            document.getElementById('apiKeyStatus').textContent = data.api_key_status || 'Connected';
+            document.getElementById('apiKeyStatus').className = 'stat-value status-connected';
             document.getElementById('webhookStatus').textContent = data.webhook_active ? 'Active' : 'Inactive';
             document.getElementById('webhookStatus').className = data.webhook_active ? 'stat-value status-connected' : 'stat-value status-disconnected';
-            
-            // Update Telegram link
-            const telegramLink = document.getElementById('telegramLink');
-            if (data.bot_username) {
-                telegramLink.href = `https://t.me/${data.bot_username}`;
-            }
-            
-            // Update last updated timestamp
-            document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
-            
-            // Remove loading classes
+
+            // Remove loading states
             const elements = document.querySelectorAll('.stat-value');
             elements.forEach(el => {
                 el.classList.remove('status-loading');
             });
+
+            // Update timestamp
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
         }
 
-        // Fetch and update stats
+        // Fetch stats from server - FIXED ENDPOINT
         async function fetchStats() {
-            debugLog('Fetching statistics from /stats endpoint...', 'info');
-            setLoadingState(true);
+            setLoadingState();
             
             try {
-                const response = await fetch('/stats');
-                debugLog(`Response status: ${response.status} ${response.statusText}`, 'info');
+                console.log('Fetching stats from /api/stats...');
+                const response = await fetch('/api/stats');
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    throw new Error(`Expected JSON but got: ${contentType}`);
+                    throw new Error(`Server returned ${response.status}`);
                 }
                 
                 const data = await response.json();
-                debugLog('Successfully fetched and parsed JSON data', 'success');
-                
                 updateDashboard(data);
-                showNotification('Stats updated successfully', 'success');
                 
             } catch (error) {
-                console.error('Error fetching stats:', error);
-                debugLog(`Fetch error: ${error.message}`, 'error');
+                console.error('Failed to fetch stats:', error);
                 setErrorState();
-                showNotification(`Failed to fetch stats: ${error.message}`, 'error');
-            } finally {
-                setLoadingState(false);
+                showError(`Cannot connect to server: ${error.message}`);
+            }
+        }
+
+        // Test bot connection
+        async function testBotConnection() {
+            try {
+                const response = await fetch('/health');
+                if (response.ok) {
+                    const healthData = await response.json();
+                    alert(`✅ Connection test successful!\nStatus: ${healthData.status}\nUptime: ${healthData.uptime}`);
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                alert('❌ Connection test failed! Check if server is running.');
             }
         }
 
         // Refresh stats manually
         function refreshStats() {
-            debugLog('Manual refresh triggered', 'info');
             fetchStats();
         }
 
-        // Test bot connection
-        async function testBotConnection() {
-            debugLog('Testing bot connection...', 'info');
-            try {
-                const response = await fetch('/');
-                if (response.ok) {
-                    showNotification('✅ Bot connection test successful!', 'success');
-                    debugLog('Bot connection test successful', 'success');
-                } else {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-            } catch (error) {
-                showNotification('❌ Bot connection test failed!', 'error');
-                debugLog(`Bot connection test failed: ${error.message}`, 'error');
-            }
-        }
-
-        // Clear cache
-        function clearCache() {
-            debugLog('Clearing cache and resetting...', 'info');
-            startTime = null;
-            setLoadingState(true);
-            showNotification('Cache cleared, refreshing...', 'info');
-            setTimeout(fetchStats, 1000);
-        }
-
-        // Initialize dashboard
+        // Initialize everything when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            debugLog('Dashboard initialized', 'info');
+            console.log('Dashboard starting...');
             
-            // Load initial stats
+            // Load initial data
             fetchStats();
             
-            // Update uptime and server time every second
+            // Start timers
             setInterval(updateUptime, 1000);
             setInterval(updateServerTime, 1000);
             
-            // Refresh stats every 30 seconds
-            setInterval(fetchStats, 30000);
-            
-            // Show initial help
-            showNotification('Dashboard loaded. Click Refresh Stats if data is not loading.', 'info');
+            // Auto-refresh stats every 30 seconds
+            refreshInterval = setInterval(fetchStats, 30000);
         });
 
-        // Error boundary
-        window.addEventListener('error', function(e) {
-            debugLog(`Global error: ${e.message}`, 'error');
-            showNotification('A JavaScript error occurred. Check console for details.', 'error');
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
         });
     </script>
 </body>
-</html>
+            </html>
