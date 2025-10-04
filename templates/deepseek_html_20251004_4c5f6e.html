@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie & TV Telegram Bot Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .stat-value {
+            font-weight: 700;
+            color: #333;
+        }
+
+        .status-online {
+            color: #10B981;
+            font-weight: bold;
+        }
+
+        .status-offline {
+            color: #EF4444;
+            font-weight: bold;
+        }
+
+        .status-error {
+            color: #DC2626;
+            font-weight: bold;
+            background: #FEE2E2;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .status-connected {
+            color: #10B981;
+            font-weight: bold;
+        }
+
+        .status-disconnected {
+            color: #F59E0B;
+            font-weight: bold;
+        }
+
+        .status-loading {
+            color: #6B7280;
+            font-style: italic;
+        }
+
+        .uptime {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6B7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4B5563;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #10B981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #EF4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #DC2626;
+            transform: translateY(-2px);
+        }
+
+        .refresh-info {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+
+        .last-updated {
+            text-align: center;
+            color: white;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            border-left: 4px solid #667eea;
+            max-width: 400px;
+            display: none;
+        }
+
+        .notification.error {
+            border-left-color: #EF4444;
+            background: #FEF2F2;
+        }
+
+        .notification.success {
+            border-left-color: #10B981;
+            background: #F0FDF4;
+        }
+
+        .notification.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .debug-panel {
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .debug-toggle {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .notification {
+                left: 20px;
+                right: 20px;
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Movie & TV Telegram Bot</h1>
+            <p>Real-time Dashboard & Statistics</p>
+        </div>
+
+        <!-- Notification System -->
+        <div id="notification" class="notification">
+            <span id="notificationMessage"></span>
+            <button onclick="hideNotification()" style="margin-left: 15px; background: none; border: none; cursor: pointer; font-size: 16px;">×</button>
+        </div>
+
+        <div class="dashboard">
+            <!-- Bot Status Card -->
+            <div class="card">
+                <h2>🤖 Bot Information</h2>
+                <div class="stat-item">
+                    <span class="stat-label">Bot Name:</span>
+                    <span class="stat-value status-loading" id="botName">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Username:</span>
+                    <span class="stat-value status-loading" id="botUsername">@Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Status:</span>
+                    <span class="stat-value status-loading" id="botStatus">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">API Connection:</span>
+                    <span class="stat-value status-loading" id="apiStatus">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Runtime Statistics -->
+            <div class="card">
+                <h2>⏱ Runtime Information</h2>
+                <div class="stat-item">
+                    <span class="stat-label">Start Time:</span>
+                    <span class="stat-value status-loading" id="startTime">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Uptime:</span>
+                    <span class="stat-value uptime" id="uptime">00:00:00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Operating Mode:</span>
+                    <span class="stat-value status-loading" id="operatingMode">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Last Update:</span>
+                    <span class="stat-value status-loading" id="lastUpdate">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Usage Statistics -->
+            <div class="card">
+                <h2>📊 Usage Statistics</h2>
+                <div class="stat-item">
+                    <span class="stat-label">Total Users:</span>
+                    <span class="stat-value status-loading" id="totalUsers">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Active Today:</span>
+                    <span class="stat-value status-loading" id="activeToday">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Movies Searched:</span>
+                    <span class="stat-value status-loading" id="moviesSearched">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">TV Shows Searched:</span>
+                    <span class="stat-value status-loading" id="tvShowsSearched">0</span>
+                </div>
+            </div>
+
+            <!-- System Information -->
+            <div class="card">
+                <h2>⚙️ System Information</h2>
+                <div class="stat-item">
+                    <span class="stat-label">Server Time:</span>
+                    <span class="stat-value" id="serverTime">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Environment:</span>
+                    <span class="stat-value status-loading" id="environment">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">API Key Status:</span>
+                    <span class="stat-value status-loading" id="apiKeyStatus">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Webhook Status:</span>
+                    <span class="stat-value status-loading" id="webhookStatus">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="controls">
+            <button class="btn btn-primary" onclick="refreshStats()">🔄 Refresh Stats</button>
+            <a href="/stats" class="btn btn-secondary" target="_blank">📈 JSON Stats</a>
+            <button class="btn btn-success" onclick="testBotConnection()">🧪 Test Bot Connection</button>
+            <button class="btn btn-danger" onclick="clearCache()">🗑️ Clear Cache</button>
+            <a href="https://t.me/your_bot_username" class="btn btn-primary" target="_blank" id="telegramLink">💬 Open Telegram</a>
+        </div>
+
+        <!-- Debug Panel -->
+        <button class="debug-toggle" onclick="toggleDebug()">🐛 Toggle Debug Panel</button>
+        <div class="debug-panel" id="debugPanel">
+            <div id="debugLog"></div>
+        </div>
+
+        <div class="refresh-info">
+            Stats auto-refresh every 30 seconds | Page will update automatically
+        </div>
+
+        <div class="last-updated">
+            Last updated: <span id="lastUpdated">Never</span>
+        </div>
+    </div>
+
+    <script>
+        let startTime = null;
+        let debugMode = false;
+
+        // Debug logging
+        function debugLog(message, type = 'info') {
+            const debugPanel = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#EF4444' : type === 'success' ? '#10B981' : '#6B7280';
+            const logEntry = `<div style="color: ${color}; margin-bottom: 5px;">[${timestamp}] ${message}</div>`;
+            
+            debugPanel.innerHTML += logEntry;
+            debugPanel.scrollTop = debugPanel.scrollHeight;
+            
+            if (debugMode) {
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+        }
+
+        // Toggle debug panel
+        function toggleDebug() {
+            debugMode = !debugMode;
+            const debugPanel = document.getElementById('debugPanel');
+            debugPanel.style.display = debugMode ? 'block' : 'none';
+            debugLog(`Debug mode ${debugMode ? 'enabled' : 'disabled'}`, 'info');
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            const messageElement = document.getElementById('notificationMessage');
+            
+            messageElement.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            // Auto-hide after 5 seconds for non-error messages
+            if (type !== 'error') {
+                setTimeout(hideNotification, 5000);
+            }
+        }
+
+        function hideNotification() {
+            const notification = document.getElementById('notification');
+            notification.classList.remove('show');
+        }
+
+        // Format time duration
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / (24 * 60 * 60));
+            const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+            const minutes = Math.floor((seconds % (60 * 60)) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            if (days > 0) {
+                return `${days}d ${hours}h ${minutes}m ${secs}s`;
+            } else if (hours > 0) {
+                return `${hours}h ${minutes}m ${secs}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${secs}s`;
+            } else {
+                return `${secs}s`;
+            }
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown';
+            try {
+                return new Date(dateString).toLocaleString();
+            } catch (e) {
+                return 'Invalid Date';
+            }
+        }
+
+        // Update uptime counter
+        function updateUptime() {
+            if (startTime) {
+                const now = new Date();
+                const uptimeSeconds = Math.floor((now - startTime) / 1000);
+                document.getElementById('uptime').textContent = formatUptime(uptimeSeconds);
+            }
+        }
+
+        // Update server time
+        function updateServerTime() {
+            const now = new Date();
+            document.getElementById('serverTime').textContent = now.toLocaleString();
+        }
+
+        // Set loading state
+        function setLoadingState(loading) {
+            const elements = document.querySelectorAll('.stat-value');
+            elements.forEach(el => {
+                if (loading && !el.classList.contains('uptime')) {
+                    el.textContent = 'Loading...';
+                    el.className = 'stat-value status-loading';
+                }
+            });
+        }
+
+        // Set error state
+        function setErrorState() {
+            document.getElementById('botStatus').textContent = 'Error';
+            document.getElementById('botStatus').className = 'stat-value status-error';
+            document.getElementById('apiStatus').textContent = 'Disconnected';
+            document.getElementById('apiStatus').className = 'stat-value status-disconnected';
+        }
+
+        // Update dashboard with data
+        function updateDashboard(data) {
+            debugLog('Updating dashboard with data:', 'success');
+            console.log('Dashboard data:', data);
+            
+            // Update bot information
+            document.getElementById('botName').textContent = data.bot_name || 'Movie & TV Bot';
+            document.getElementById('botUsername').textContent = data.bot_username ? `@${data.bot_username}` : '@unknown_bot';
+            document.getElementById('botStatus').textContent = data.status || 'Online';
+            document.getElementById('botStatus').className = data.status === 'error' ? 'stat-value status-error' : 'stat-value status-online';
+            document.getElementById('apiStatus').textContent = data.api_connected ? 'Connected' : 'Disconnected';
+            document.getElementById('apiStatus').className = data.api_connected ? 'stat-value status-connected' : 'stat-value status-disconnected';
+            
+            // Update runtime information
+            if (data.start_time) {
+                startTime = new Date(data.start_time);
+                document.getElementById('startTime').textContent = formatDate(data.start_time);
+            }
+            document.getElementById('operatingMode').textContent = data.operating_mode || 'Unknown';
+            document.getElementById('lastUpdate').textContent = formatDate(data.last_update || new Date().toISOString());
+            
+            // Update usage statistics
+            document.getElementById('totalUsers').textContent = data.total_users ?? 0;
+            document.getElementById('activeToday').textContent = data.active_today ?? 0;
+            document.getElementById('moviesSearched').textContent = data.movies_searched ?? 0;
+            document.getElementById('tvShowsSearched').textContent = data.tv_shows_searched ?? 0;
+            
+            // Update system information
+            document.getElementById('environment').textContent = data.environment || 'Unknown';
+            document.getElementById('apiKeyStatus').textContent = data.api_key_status || 'Unknown';
+            document.getElementById('apiKeyStatus').className = data.api_key_status === 'Connected' ? 'stat-value status-connected' : 'stat-value status-disconnected';
+            document.getElementById('webhookStatus').textContent = data.webhook_active ? 'Active' : 'Inactive';
+            document.getElementById('webhookStatus').className = data.webhook_active ? 'stat-value status-connected' : 'stat-value status-disconnected';
+            
+            // Update Telegram link
+            const telegramLink = document.getElementById('telegramLink');
+            if (data.bot_username) {
+                telegramLink.href = `https://t.me/${data.bot_username}`;
+            }
+            
+            // Update last updated timestamp
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+            
+            // Remove loading classes
+            const elements = document.querySelectorAll('.stat-value');
+            elements.forEach(el => {
+                el.classList.remove('status-loading');
+            });
+        }
+
+        // Fetch and update stats
+        async function fetchStats() {
+            debugLog('Fetching statistics from /stats endpoint...', 'info');
+            setLoadingState(true);
+            
+            try {
+                const response = await fetch('/stats');
+                debugLog(`Response status: ${response.status} ${response.statusText}`, 'info');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error(`Expected JSON but got: ${contentType}`);
+                }
+                
+                const data = await response.json();
+                debugLog('Successfully fetched and parsed JSON data', 'success');
+                
+                updateDashboard(data);
+                showNotification('Stats updated successfully', 'success');
+                
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+                debugLog(`Fetch error: ${error.message}`, 'error');
+                setErrorState();
+                showNotification(`Failed to fetch stats: ${error.message}`, 'error');
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        // Refresh stats manually
+        function refreshStats() {
+            debugLog('Manual refresh triggered', 'info');
+            fetchStats();
+        }
+
+        // Test bot connection
+        async function testBotConnection() {
+            debugLog('Testing bot connection...', 'info');
+            try {
+                const response = await fetch('/');
+                if (response.ok) {
+                    showNotification('✅ Bot connection test successful!', 'success');
+                    debugLog('Bot connection test successful', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                showNotification('❌ Bot connection test failed!', 'error');
+                debugLog(`Bot connection test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Clear cache
+        function clearCache() {
+            debugLog('Clearing cache and resetting...', 'info');
+            startTime = null;
+            setLoadingState(true);
+            showNotification('Cache cleared, refreshing...', 'info');
+            setTimeout(fetchStats, 1000);
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            debugLog('Dashboard initialized', 'info');
+            
+            // Load initial stats
+            fetchStats();
+            
+            // Update uptime and server time every second
+            setInterval(updateUptime, 1000);
+            setInterval(updateServerTime, 1000);
+            
+            // Refresh stats every 30 seconds
+            setInterval(fetchStats, 30000);
+            
+            // Show initial help
+            showNotification('Dashboard loaded. Click Refresh Stats if data is not loading.', 'info');
+        });
+
+        // Error boundary
+        window.addEventListener('error', function(e) {
+            debugLog(`Global error: ${e.message}`, 'error');
+            showNotification('A JavaScript error occurred. Check console for details.', 'error');
+        });
+    </script>
+</body>
+</html>
