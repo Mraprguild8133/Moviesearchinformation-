@@ -755,7 +755,7 @@ Keep exploring to get better recommendations! 🎯
         if self.polling:
             return
         
-        self.polling = False 
+        self.polling = True 
         self.polling_thread = threading.Thread(target=self._poll_updates)
         self.polling_thread.daemon = True
         self.polling_thread.start()
